@@ -21,7 +21,6 @@ BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
 ONE_STORE_API_URL = "https://one1store.com/api"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 
-# خادم ويب لـ Render
 app = Flask(__name__)
 
 
@@ -35,11 +34,11 @@ def fetch_from_one_store(endpoint):
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    logger.info(f"API URL: {url} | Status: {response.status_code}")
-    logger.info(f"API Response Body: {response.text}")
+    logger.info(f"==> API URL: {url} | Status: {response.status_code}")
+    logger.info(f"==> API RAW Response: {response.text}")
     return response.json()
   except Exception as e:
-    logger.error(f"API Error on {endpoint}: {e}")
+    logger.error(f"==> API Error on {endpoint}: {e}")
     return None
 
 
@@ -69,8 +68,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_live_data":
+    # تجربة جلب المنتجات أو الأقسام
     data = fetch_from_one_store("products")
-    if not data:
+    if not data or (isinstance(data, dict) and not data.get("data") and not data.get("products")):
       data = fetch_from_one_store("categories")
 
     keyboard = []
@@ -114,12 +114,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-  # خطوة إسعافية: تصفير أي Webhook قديم أو جلسة معلقة لدى سيرفر تيليجرام فوراً
+  # تنظيف أي Webhook قديم لتجنب أي تعارض
   try:
     requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
-    logger.info("Successfully cleared any previous Telegram webhook/sessions.")
-  except Exception as e:
-    logger.error(f"Failed to clear webhook: {e}")
+  except Exception:
+    pass
 
   request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
   application = (
@@ -129,7 +128,7 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  logger.info("Starting bot polling cleanly...")
+  logger.info("Starting bot cleanly...")
   application.run_polling(
       drop_pending_updates=True,
       allowed_updates=Update.ALL_TYPES,
@@ -141,8 +140,8 @@ if __name__ == "__main__":
   import threading
 
   def run_web():
-    port = int(os.environ.com.get("PORT", 10000) if hasattr(os.environ, "com") else os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)), use_reloader=False)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, use_reloader=False)
 
   web_thread = threading.Thread(target=run_web)
   web_thread.daemon = True
