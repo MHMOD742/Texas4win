@@ -8,8 +8,6 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
-    MessageHandler,
-    filters,
 )
 from telegram.request import HTTPXRequest
 
@@ -23,12 +21,13 @@ BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
 ONE_STORE_API_URL = "https://one1store.com/api"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 
+# خادم ويب لـ Render
 app = Flask(__name__)
 
 
 @app.route("/")
 def home():
-  return "One Store Telegram Bot is running!"
+  return "One Store Telegram Bot is running perfectly!"
 
 
 def fetch_from_one_store(endpoint):
@@ -36,7 +35,6 @@ def fetch_from_one_store(endpoint):
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    # طباعة الرد حرفياً في السجلات لنراه بوضوح
     logger.info(f"API URL: {url} | Status: {response.status_code}")
     logger.info(f"API Response Body: {response.text}")
     return response.json()
@@ -49,7 +47,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user_name = update.effective_user.first_name
   welcome_message = (
       f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي عبر One Store 🎮🔥\n\n"
-      "اختر من الأزرار بالأسفل لتصفح المنتجات والأقسام المتوفرة فوراً:"
+      "اختر من الأزرار بالأسفل لتصفح المنتجات والخدمات المتوفرة:"
   )
 
   keyboard = [
@@ -71,10 +69,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_live_data":
-    # سنقوم بفحص مسار المنتجات أو الخدمات حسب النظام
+    # جلب المنتجات مباشرة من One Store API
     data = fetch_from_one_store("products")
     if not data:
-      data = fetch_from_one_store("items")
+      data = fetch_from_one_store("categories")
 
     keyboard = []
     
@@ -83,7 +81,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
       if isinstance(data, list):
         items = data
       elif isinstance(data, dict):
-        for key in ["data", "products", "items", "result"]:
+        for key in ["data", "products", "categories", "items", "result"]:
           if key in data and isinstance(data[key], list):
             items = data[key]
             break
@@ -94,6 +92,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
           item_id = str(item.get("id", ""))
           keyboard.append([InlineKeyboardButton(f"📦 {name}", callback_data=f"item_{item_id}")])
 
+    # إذا لم تصدر البيانات كقائمة نضع زر افتراضي للتأكيد
     if not keyboard:
       keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
       keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
@@ -125,8 +124,13 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  logger.info("Starting bot polling with API logging...")
-  application.run_polling(drop_pending_updates=True, stop_signals=None)
+  logger.info("Starting bot polling cleanly...")
+  # إجبار التليجرام على تجاهل أي تجمعات قديمة وبدء اتصال نظيف
+  application.run_polling(
+      drop_pending_updates=True,
+      allowed_updates=Update.ALL_TYPES,
+      stop_signals=None,
+  )
 
 
 if __name__ == "__main__":
