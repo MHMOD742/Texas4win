@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from flask import Flask, request as flask_request
@@ -24,7 +25,7 @@ RENDER_URL = "https://texas4win-1.onrender.com"
 
 app = Flask(__name__)
 
-# تهيئة تطبيق تيليجرام مرة واحدة
+# تهيئة تطبيق تيليجرام
 request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
 application = (
     ApplicationBuilder().token(BOT_TOKEN).request(request_settings).build()
@@ -125,25 +126,23 @@ def home():
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-  """استقبال وتحديثات تيليجرام بطريقة آمنة ومستقرة بدون مشاكل Event Loop"""
+  """معالجة آمنة ومستقرة تماماً لتحديثات تيليجرام داخل الخيوط الفرعية"""
   try:
     json_data = flask_request.get_json(force=True)
     update = Update.de_json(json_data, application.bot)
     
-    # استخدام حلقة الأحداث العامة للتطبيق بشكل آمن
-    import asyncio
-    loop = asyncio.get_event_loop()
-    if loop.is_closed():
-      loop = asyncio.new_event_loop()
-      asyncio.set_event_loop(loop)
-      
+    # إنشاء حلقة أحداث مخصصة وآمنة لهذا الطلب حصراً لتجنب خطأ Thread Loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     loop.run_until_complete(application.initialize())
     loop.run_until_complete(application.process_update(update))
+    loop.close()
     
     return "OK", 200
   except Exception as e:
-    logger.error(f"Webhook Error: {e}")
-    return "OK", 200  # إرجاع 200 لتجنب إعادة إرسال تيليجرام للطلب
+    logger.error(f"Webhook Processing Error: {e}")
+    return "OK", 200
 
 
 def setup_webhook():
