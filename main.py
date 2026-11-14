@@ -37,9 +37,10 @@ def fetch_from_one_store(endpoint):
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
+    logger.info(f"API Response Status for {endpoint}: {response.status_code}")
     return response.json()
   except Exception as e:
-    logger.error(f"API Error: {e}")
+    logger.error(f"API Error on {endpoint}: {e}")
     return None
 
 
@@ -47,11 +48,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user_name = update.effective_user.first_name
   welcome_message = (
       f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي عبر One Store 🎮🔥\n\n"
-      "اختر من الأزرار بالأسفل لتصفح الخدمات والأقسام المتوفرة:"
+      "اختر من الأزرار بالأسفل لتصفح المنتجات والأقسام المتوفرة فوراً:"
   )
 
   keyboard = [
-      [InlineKeyboardButton("🛒 تصفح أقسام المتجر", callback_data="fetch_categories")],
+      [InlineKeyboardButton("🛒 تصفح المنتجات والأقسام", callback_data="fetch_live_data")],
       [InlineKeyboardButton("📞 التواصل والدعم", callback_data="support")],
   ]
   reply_markup = InlineKeyboardMarkup(keyboard)
@@ -68,25 +69,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   query = update.callback_query
   await query.answer()
 
-  if query.data == "fetch_categories":
-    # جلب البيانات الحقيقية من الـ API
-    data = fetch_from_one_store("categories")
-    
+  if query.data == "fetch_live_data":
+    # محاولة جلب المنتجات أو الأقسام الحقيقية بناءً على التوثيق
+    data = fetch_from_one_store("products")
+    if not data:
+      data = fetch_from_one_store("categories")
+
     keyboard = []
     
-    # تحقق إذا رجعت البيانات بشكل صحيح
-    if data and isinstance(data, list):
-      for cat in data:
-        cat_name = cat.get("name", "قسم جديد")
-        cat_id = str(cat.get("id", ""))
-        keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"cat_{cat_id}")])
-    elif data and isinstance(data, dict) and "data" in data:
-      for cat in data["data"]:
-        cat_name = cat.get("name", "قسم جديد")
-        cat_id = str(cat.get("id", ""))
-        keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"cat_{cat_id}")])
-    
-    # في حال لم تكن هناك أقسام جاهزة كقائمة، نعرض زر تجريبي أو زر رجوع
+    # تحليل هيكل البيانات بذكاء واستخراج المنتجات/الأقسام
+    if data:
+      items = []
+      if isinstance(data, list):
+        items = data
+      elif isinstance(data, dict):
+        # البحث في المفاتيح الشائعة للاستجابة
+        for key in ["data", "products", "categories", "items", "result"]:
+          if key in data and isinstance(data[key], list):
+            items = data[key]
+            break
+        if not items and "name" in data:
+          items = [data]
+
+      for item in items:
+        if isinstance(item, dict):
+          name = item.get("name", item.get("title", "منتج بدون اسم"))
+          item_id = str(item.get("id", ""))
+          keyboard.append([InlineKeyboardButton(f"📦 {name}", callback_data=f"item_{item_id}")])
+
+    # في حال لم يتم العثور على عناصر بالـ API، نعرض باقات أساسية للتأكد من عمل الأزرار
     if not keyboard:
       keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
       keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
@@ -95,7 +106,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.edit_text(
-        "📂 اختر القسم المطلوب من متجرك:",
+        "📂 قائمة المنتجات المتوفرة في متجرك:",
         reply_markup=reply_markup,
     )
   elif query.data == "main_menu":
@@ -118,7 +129,7 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  logger.info("Starting bot polling with dynamic One Store API integration...")
+  logger.info("Starting bot polling with full One Store API sync...")
   application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 
