@@ -23,7 +23,6 @@ BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
 ONE_STORE_API_URL = "https://one1store.com/api"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 
-# خادم ويب خفيف لـ Render
 app = Flask(__name__)
 
 
@@ -37,7 +36,9 @@ def fetch_from_one_store(endpoint):
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    logger.info(f"API Response Status for {endpoint}: {response.status_code}")
+    # طباعة الرد حرفياً في السجلات لنراه بوضوح
+    logger.info(f"API URL: {url} | Status: {response.status_code}")
+    logger.info(f"API Response Body: {response.text}")
     return response.json()
   except Exception as e:
     logger.error(f"API Error on {endpoint}: {e}")
@@ -70,26 +71,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_live_data":
-    # محاولة جلب المنتجات أو الأقسام الحقيقية بناءً على التوثيق
+    # سنقوم بفحص مسار المنتجات أو الخدمات حسب النظام
     data = fetch_from_one_store("products")
     if not data:
-      data = fetch_from_one_store("categories")
+      data = fetch_from_one_store("items")
 
     keyboard = []
     
-    # تحليل هيكل البيانات بذكاء واستخراج المنتجات/الأقسام
     if data:
       items = []
       if isinstance(data, list):
         items = data
       elif isinstance(data, dict):
-        # البحث في المفاتيح الشائعة للاستجابة
-        for key in ["data", "products", "categories", "items", "result"]:
+        for key in ["data", "products", "items", "result"]:
           if key in data and isinstance(data[key], list):
             items = data[key]
             break
-        if not items and "name" in data:
-          items = [data]
 
       for item in items:
         if isinstance(item, dict):
@@ -97,7 +94,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
           item_id = str(item.get("id", ""))
           keyboard.append([InlineKeyboardButton(f"📦 {name}", callback_data=f"item_{item_id}")])
 
-    # في حال لم يتم العثور على عناصر بالـ API، نعرض باقات أساسية للتأكد من عمل الأزرار
     if not keyboard:
       keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
       keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
@@ -129,7 +125,7 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  logger.info("Starting bot polling with full One Store API sync...")
+  logger.info("Starting bot polling with API logging...")
   application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 
