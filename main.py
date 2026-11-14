@@ -10,7 +10,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
-ONE_STORE_API_URL = "https://one1store.com/api"
+# تعديل الرابط الأساسي ليكون متوافقاً تماماً مع التوثيق
+ONE_STORE_API_URL = "https://one1store.com/api/v1" 
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 RENDER_URL = "https://texas4win-1.onrender.com"
 
@@ -18,14 +19,22 @@ app = Flask(__name__)
 
 
 def fetch_from_one_store(endpoint):
-  headers = {"Authorization": f"Bearer {API_TOKEN}", "Accept": "application/json"}
+  headers = {
+      "Authorization": f"Bearer {API_TOKEN}",
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+  }
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    logger.info(f"=== ONE STORE API DEBUG [{endpoint}] ===")
+    logger.info(f"=== ONE STORE API DEBUG [{url}] ===")
     logger.info(f"Status Code: {response.status_code}")
-    logger.info(f"Response Body: {response.text}")
-    return response.json()
+    logger.info(f"Response Text: {response.text}")
+    
+    # محاولة تحويل الرد إلى JSON بأمان تام
+    if response.status_code == 200:
+      return response.json()
+    return None
   except Exception as e:
     logger.error(f"API Error on {endpoint}: {e}")
     return None
@@ -104,12 +113,12 @@ def webhook():
       )
 
       if callback_data == "fetch_live_data":
-        # فحص المسارات المتعددة وجلبها لطباعتها في الـ Logs
+        # تجربة المسارات المحتملة في توثيق API
         api_data = fetch_from_one_store("products")
         if not api_data:
-          api_data = fetch_from_one_store("categories")
+          api_data = fetch_from_one_store("items")
         if not api_data:
-          api_data = fetch_from_one_store("services")
+          api_data = fetch_from_one_store("categories")
 
         inline_keyboard = []
         
@@ -118,17 +127,15 @@ def webhook():
           if isinstance(api_data, list):
             items = api_data
           elif isinstance(api_data, dict):
-            for key in ["data", "products", "categories", "items", "result", "services"]:
+            for key in ["data", "products", "items", "categories", "result"]:
               if key in api_data and isinstance(api_data[key], list):
                 items = api_data[key]
                 break
-            if not items and "name" in api_data:
-              items = [api_data]
 
           for item in items:
             if isinstance(item, dict):
-              name = item.get("name", item.get("title", item.get("service_name", "منتج بدون اسم")))
-              item_id = str(item.get("id", item.get("service_id", "")))
+              name = item.get("name", item.get("title", "منتج بدون اسم"))
+              item_id = str(item.get("id", ""))
               inline_keyboard.append([{"text": f"📦 {name}", "callback_data": f"item_{item_id}"}])
 
         if not inline_keyboard:
@@ -182,5 +189,5 @@ def setup_webhook():
 
 if __name__ == "__main__":
   setup_webhook()
-  port = int(os.environ.com.get("PORT", 10000) if hasattr(os.environ, "com") else os.environ.get("PORT", 10000))
-  app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)), use_reloader=False)
+  port = int(os.environ.get("PORT", 10000))
+  app.run(host="0.0.0.0", port=port, use_reloader=False)
