@@ -32,14 +32,11 @@ def home():
   return "One Store Telegram Bot is running!"
 
 
-def fetch_from_one_store(endpoint, payload=None):
+def fetch_from_one_store(endpoint):
   headers = {"Authorization": f"Bearer {API_TOKEN}", "Accept": "application/json"}
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
-    if payload:
-      response = requests.post(url, json=payload, headers=headers, timeout=20)
-    else:
-      response = requests.get(url, headers=headers, timeout=20)
+    response = requests.get(url, headers=headers, timeout=20)
     return response.json()
   except Exception as e:
     logger.error(f"API Error: {e}")
@@ -72,17 +69,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_categories":
-    # جلب الأقسام أو المنتجات من One Store API
-    # (يمكنك تعديل الـ endpoint حسب مسار الـ API المعتمد لديك)
-    data = fetch_from_one_store("categories")  # أو المنتجات
-
+    # جلب البيانات الحقيقية من الـ API
+    data = fetch_from_one_store("categories")
+    
     keyboard = []
-    # مثال تفاعلي في حال جلب البيانات بنجاح أو عرض زر رجوع
+    
+    # تحقق إذا رجعت البيانات بشكل صحيح
+    if data and isinstance(data, list):
+      for cat in data:
+        cat_name = cat.get("name", "قسم جديد")
+        cat_id = str(cat.get("id", ""))
+        keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"cat_{cat_id}")])
+    elif data and isinstance(data, dict) and "data" in data:
+      for cat in data["data"]:
+        cat_name = cat.get("name", "قسم جديد")
+        cat_id = str(cat.get("id", ""))
+        keyboard.append([InlineKeyboardButton(cat_name, callback_data=f"cat_{cat_id}")])
+    
+    # في حال لم تكن هناك أقسام جاهزة كقائمة، نعرض زر تجريبي أو زر رجوع
+    if not keyboard:
+      keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
+      keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
+
     keyboard.append([InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="main_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.message.edit_text(
-        "📦 جاري جلب الأقسام والخدمات المتوفرة في حسابك على One Store...",
+        "📂 اختر القسم المطلوب من متجرك:",
         reply_markup=reply_markup,
     )
   elif query.data == "main_menu":
@@ -105,7 +118,7 @@ def main():
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
-  logger.info("Starting bot polling with One Store API integration...")
+  logger.info("Starting bot polling with dynamic One Store API integration...")
   application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 
