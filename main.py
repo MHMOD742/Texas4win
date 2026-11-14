@@ -10,8 +10,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
-# الرابط الأساسي المحدث لخدمات One Store
-ONE_STORE_API_URL = "https://one1store.com/api" 
+# استخدام الرابط المعتمد مع التوكن الخاص بحسابك
+ONE_STORE_API_URL = "https://one1store.com/api"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 RENDER_URL = "https://texas4win-1.onrender.com"
 
@@ -22,20 +22,24 @@ def fetch_from_one_store(endpoint):
   headers = {
       "Authorization": f"Bearer {API_TOKEN}",
       "Accept": "application/json",
-      "Content-Type": "application/json"
+      "User-Agent": "Mozilla/5.0",
   }
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    logger.info(f"=== ONE STORE API DEBUG [{url}] ===")
-    logger.info(f"Status Code: {response.status_code}")
-    logger.info(f"Response Text: {response.text}")
+    logger.info(f"=== API REQUEST: {url} | Status: {response.status_code} ===")
     
     if response.status_code == 200:
-      return response.json()
-    return None
+      try:
+        return response.json()
+      except Exception:
+        logger.error(f"Response is not JSON: {response.text[:200]}")
+        return None
+    else:
+      logger.error(f"API Error Response: {response.text[:200]}")
+      return None
   except Exception as e:
-    logger.error(f"API Error on {endpoint}: {e}")
+    logger.error(f"API Connection Exception on {endpoint}: {e}")
     return None
 
 
@@ -72,7 +76,7 @@ def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
 
 @app.route("/")
 def home():
-  return "One Store Direct Telegram Bot is running perfectly!"
+  return "One Store Telegram Bot is running perfectly!"
 
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -89,11 +93,11 @@ def webhook():
       if text.startswith("/start"):
         welcome_msg = (
             f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي عبر One Store 🎮🔥\n\n"
-            "اختر من الأزرار بالأسفل لتصفح المنتجات والخدمات المتوفرة:"
+            "اختر من الأزرار بالأسفل لتصفح جميع منتجات وأقسام متجرك الحقيقية:"
         )
         keyboard = {
             "inline_keyboard": [
-                [{"text": "🛒 تصفح المنتجات والأقسام", "callback_data": "fetch_live_data"}],
+                [{"text": "🛒 تصفح جميع منتجات المتجر", "callback_data": "fetch_live_data"}],
                 [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
             ]
         }
@@ -112,10 +116,12 @@ def webhook():
       )
 
       if callback_data == "fetch_live_data":
-        # تجربة المسار الصحيح للمنتجات
-        api_data = fetch_from_one_store("v1/products")
+        # محاولة سحب المنتجات من مسارات النظام المختلفة
+        api_data = fetch_from_one_store("products")
         if not api_data:
-          api_data = fetch_from_one_store("products")
+          api_data = fetch_from_one_store("items")
+        if not api_data:
+          api_data = fetch_from_one_store("categories")
 
         inline_keyboard = []
         
@@ -124,7 +130,7 @@ def webhook():
           if isinstance(api_data, list):
             items = api_data
           elif isinstance(api_data, dict):
-            for key in ["data", "products", "items", "result"]:
+            for key in ["data", "products", "items", "categories", "result"]:
               if key in api_data and isinstance(api_data[key], list):
                 items = api_data[key]
                 break
@@ -136,6 +142,7 @@ def webhook():
               inline_keyboard.append([{"text": f"📦 {name}", "callback_data": f"item_{item_id}"}])
 
         if not inline_keyboard:
+          # باقات افتراضية مؤقتة في حال لم يتم جلب البيانات لتفادي فراغ القائمة
           inline_keyboard.append([{"text": "📦 باقة 60 شدة (UC)", "callback_data": "buy_60"}])
           inline_keyboard.append([{"text": "📦 باقة 325 شدة (UC)", "callback_data": "buy_325"}])
 
@@ -144,7 +151,7 @@ def webhook():
         edit_telegram_message(
             chat_id,
             message_id,
-            "📂 قائمة المنتجات المتوفرة في متجرك:",
+            "📂 جميع المنتجات المتوفرة في حسابك على One Store:",
             {"inline_keyboard": inline_keyboard}
         )
 
@@ -152,7 +159,7 @@ def webhook():
         welcome_msg = "أهلاً بك مرة أخرى في القائمة الرئيسية للمتجر 🎮🔥"
         keyboard = {
             "inline_keyboard": [
-                [{"text": "🛒 تصفح المنتجات والأقسام", "callback_data": "fetch_live_data"}],
+                [{"text": "🛒 تصفح جميع منتجات المتجر", "callback_data": "fetch_live_data"}],
                 [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
             ]
         }
