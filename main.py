@@ -10,8 +10,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
-# الرابط المعتمد للـ API حسب لوحة التحكم والتوثيق
-ONE_STORE_API_URL = "https://api.one1store.com/api" 
+# الرابط الأساسي المحدث لخدمات One Store
+ONE_STORE_API_URL = "https://one1store.com/api" 
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 RENDER_URL = "https://texas4win-1.onrender.com"
 
@@ -112,14 +112,10 @@ def webhook():
       )
 
       if callback_data == "fetch_live_data":
-        # تجربة جلب المنتجات أو الأقسام من الرابط الصحيح
-        api_data = fetch_from_one_store("products")
+        # تجربة المسار الصحيح للمنتجات
+        api_data = fetch_from_one_store("v1/products")
         if not api_data:
-          api_data = fetch_from_one_store("items")
-        if not api_data:
-          api_data = fetch_from_one_store("categories")
-        if not api_data:
-          api_data = fetch_from_one_store("services")
+          api_data = fetch_from_one_store("products")
 
         inline_keyboard = []
         
@@ -128,15 +124,15 @@ def webhook():
           if isinstance(api_data, list):
             items = api_data
           elif isinstance(api_data, dict):
-            for key in ["data", "products", "items", "categories", "services", "result"]:
+            for key in ["data", "products", "items", "result"]:
               if key in api_data and isinstance(api_data[key], list):
                 items = api_data[key]
                 break
 
           for item in items:
             if isinstance(item, dict):
-              name = item.get("name", item.get("title", item.get("service_name", "منتج بدون اسم")))
-              item_id = str(item.get("id", item.get("service_id", "")))
+              name = item.get("name", item.get("title", "منتج بدون اسم"))
+              item_id = str(item.get("id", ""))
               inline_keyboard.append([{"text": f"📦 {name}", "callback_data": f"item_{item_id}"}])
 
         if not inline_keyboard:
