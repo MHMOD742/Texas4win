@@ -1,16 +1,7 @@
-import asyncio
 import logging
 import os
 from flask import Flask, request as flask_request
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-)
-from telegram.request import HTTPXRequest
 
 # إعدادات الـ Logging
 logging.basicConfig(
@@ -24,12 +15,6 @@ API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 RENDER_URL = "https://texas4win-1.onrender.com"
 
 app = Flask(__name__)
-
-# تهيئة تطبيق تيليجرام
-request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
-application = (
-    ApplicationBuilder().token(BOT_TOKEN).request(request_settings).build()
-)
 
 
 def fetch_from_one_store(endpoint):
@@ -45,103 +30,143 @@ def fetch_from_one_store(endpoint):
     return None
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  user_name = update.effective_user.first_name
-  welcome_message = (
-      f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي عبر One Store 🎮🔥\n\n"
-      "اختر من الأزرار بالأسفل لتصفح المنتجات والخدمات المتوفرة:"
-  )
-
-  keyboard = [
-      [InlineKeyboardButton("🛒 تصفح المنتجات والأقسام", callback_data="fetch_live_data")],
-      [InlineKeyboardButton("📞 التواصل والدعم", callback_data="support")],
-  ]
-  reply_markup = InlineKeyboardMarkup(keyboard)
-
-  if update.message:
-    await update.message.reply_text(welcome_message, reply_markup=reply_markup)
-  elif update.callback_query:
-    await update.callback_query.message.edit_text(
-        welcome_message, reply_markup=reply_markup
-    )
+def send_telegram_message(chat_id, text, reply_markup=None):
+  url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+  payload = {
+      "chat_id": chat_id,
+      "text": text,
+      "parse_mode": "Markdown",
+  }
+  if reply_markup:
+    payload["reply_markup"] = reply_markup
+  try:
+    requests.post(url, json=payload, timeout=10)
+  except Exception as e:
+    logger.error(f"Telegram Send Error: {e}")
 
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  query = update.callback_query
-  await query.answer()
-
-  if query.data == "fetch_live_data":
-    data = fetch_from_one_store("products")
-    if not data or (isinstance(data, dict) and not data.get("data") and not data.get("products")):
-      data = fetch_from_one_store("categories")
-
-    keyboard = []
-    
-    if data:
-      items = []
-      if isinstance(data, list):
-        items = data
-      elif isinstance(data, dict):
-        for key in ["data", "products", "categories", "items", "result"]:
-          if key in data and isinstance(data[key], list):
-            items = data[key]
-            break
-
-      for item in items:
-        if isinstance(item, dict):
-          name = item.get("name", item.get("title", "منتج بدون اسم"))
-          item_id = str(item.get("id", ""))
-          keyboard.append([InlineKeyboardButton(f"📦 {name}", callback_data=f"item_{item_id}")])
-
-    if not keyboard:
-      keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
-      keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
-
-    keyboard.append([InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="main_menu")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.message.edit_text(
-        "📂 قائمة المنتجات المتوفرة في متجرك:",
-        reply_markup=reply_markup,
-    )
-  elif query.data == "main_menu":
-    await start(update, context)
-  elif query.data == "support":
-    await query.message.edit_text(
-        "للتواصل والدعم الفني عبر تليجرام:\n🆔 Account ID: 7383417915",
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 رجوع", callback_data="main_menu")]]
-        ),
-    )
-
-
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(button_handler))
+def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
+  url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+  payload = {
+      "chat_id": chat_id,
+      "message_id": message_id,
+      "text": text,
+      "parse_mode": "Markdown",
+  }
+  if reply_markup:
+    payload["reply_markup"] = reply_markup
+  try:
+    requests.post(url, json=payload, timeout=10)
+  except Exception as e:
+    logger.error(f"Telegram Edit Error: {e}")
 
 
 @app.route("/")
 def home():
-  return "One Store Telegram Bot Webhook is running perfectly!"
+  return "One Store Direct Telegram Bot is running perfectly!"
 
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-  """معالجة آمنة ومستقرة تماماً لتحديثات تيليجرام داخل الخيوط الفرعية"""
+  """استقبال وتجهيز الردود بشكل مباشر وبدون أي أخطاء في الحلقات البرمجية"""
   try:
-    json_data = flask_request.get_json(force=True)
-    update = Update.de_json(json_data, application.bot)
+    data = flask_request.get_json(force=True)
     
-    # إنشاء حلقة أحداث مخصصة وآمنة لهذا الطلب حصراً لتجنب خطأ Thread Loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    loop.run_until_complete(application.initialize())
-    loop.run_until_complete(application.process_update(update))
-    loop.close()
-    
+    # معالجة الرسائل النصية مثل /start
+    if "message" in data:
+      msg = data["message"]
+      chat_id = msg["chat"]["id"]
+      user_name = msg.get("from", {}).get("first_name", "صديقي")
+      text = msg.get("text", "")
+
+      if text.startswith("/start"):
+        welcome_msg = (
+            f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي عبر One Store 🎮🔥\n\n"
+            "اختر من الأزرار بالأسفل لتصفح المنتجات والخدمات المتوفرة:"
+        )
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "🛒 تصفح المنتجات والأقسام", "callback_data": "fetch_live_data"}],
+                [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
+            ]
+        }
+        send_telegram_message(chat_id, welcome_msg, keyboard)
+
+    # معالجة ضغطات الأزرار (Callback Queries)
+    elif "callback_query" in data:
+      query = data["callback_query"]
+      chat_id = query["message"]["chat"]["id"]
+      message_id = query["message"]["message_id"]
+      callback_data = query["data"]
+
+      # الرد على ضغطة الزر لإيقاف التحميل
+      requests.post(
+          f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery",
+          json={"callback_query_id": query["id"]},
+          timeout=5
+      )
+
+      if callback_data == "fetch_live_data":
+        # جلب البيانات من وان ستور
+        api_data = fetch_from_one_store("products")
+        if not api_data or (isinstance(api_data, dict) and not api_data.get("data") and not api_data.get("products")):
+          api_data = fetch_from_one_store("categories")
+
+        inline_keyboard = []
+        
+        if api_data:
+          items = []
+          if isinstance(api_data, list):
+            items = api_data
+          elif isinstance(api_data, dict):
+            for key in ["data", "products", "categories", "items", "result"]:
+              if key in api_data and isinstance(api_data[key], list):
+                items = api_data[key]
+                break
+
+          for item in items:
+            if isinstance(item, dict):
+              name = item.get("name", item.get("title", "منتج بدون اسم"))
+              item_id = str(item.get("id", ""))
+              inline_keyboard.append([{"text": f"📦 {name}", "callback_data": f"item_{item_id}"}])
+
+        if not inline_keyboard:
+          inline_keyboard.append([{"text": "📦 باقة 60 شدة (UC)", "callback_data": "buy_60"}])
+          inline_keyboard.append([{"text": "📦 باقة 325 شدة (UC)", "callback_data": "buy_325"}])
+
+        inline_keyboard.append([{"text": "🔙 رجوع للقائمة الرئيسية", "callback_data": "main_menu"}])
+        
+        edit_telegram_message(
+            chat_id,
+            message_id,
+            "📂 قائمة المنتجات المتوفرة في متجرك:",
+            {"inline_keyboard": inline_keyboard}
+        )
+
+      elif callback_data == "main_menu":
+        welcome_msg = "أهلاً بك مرة أخرى في القائمة الرئيسية للمتجر 🎮🔥"
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "🛒 تصفح المنتجات والأقسام", "callback_data": "fetch_live_data"}],
+                [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
+            ]
+        }
+        edit_telegram_message(chat_id, message_id, welcome_msg, keyboard)
+
+      elif callback_data == "support":
+        support_msg = (
+            "للتواصل والدعم الفني عبر تليجرام:\n🆔 Account ID: 7383417915"
+        )
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "🔙 رجوع", "callback_data": "main_menu"}]
+            ]
+        }
+        edit_telegram_message(chat_id, message_id, support_msg, keyboard)
+
     return "OK", 200
   except Exception as e:
-    logger.error(f"Webhook Processing Error: {e}")
+    logger.error(f"Webhook Execution Error: {e}")
     return "OK", 200
 
 
