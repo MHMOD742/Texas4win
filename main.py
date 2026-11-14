@@ -69,7 +69,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_live_data":
-    # جلب المنتجات مباشرة من One Store API
     data = fetch_from_one_store("products")
     if not data:
       data = fetch_from_one_store("categories")
@@ -92,7 +91,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
           item_id = str(item.get("id", ""))
           keyboard.append([InlineKeyboardButton(f"📦 {name}", callback_data=f"item_{item_id}")])
 
-    # إذا لم تصدر البيانات كقائمة نضع زر افتراضي للتأكيد
     if not keyboard:
       keyboard.append([InlineKeyboardButton("📦 باقة 60 شدة (UC)", callback_data="buy_60")])
       keyboard.append([InlineKeyboardButton("📦 باقة 325 شدة (UC)", callback_data="buy_325")])
@@ -116,6 +114,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+  # خطوة إسعافية: تصفير أي Webhook قديم أو جلسة معلقة لدى سيرفر تيليجرام فوراً
+  try:
+    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
+    logger.info("Successfully cleared any previous Telegram webhook/sessions.")
+  except Exception as e:
+    logger.error(f"Failed to clear webhook: {e}")
+
   request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
   application = (
       ApplicationBuilder().token(BOT_TOKEN).request(request_settings).build()
@@ -125,7 +130,6 @@ def main():
   application.add_handler(CallbackQueryHandler(button_handler))
 
   logger.info("Starting bot polling cleanly...")
-  # إجبار التليجرام على تجاهل أي تجمعات قديمة وبدء اتصال نظيف
   application.run_polling(
       drop_pending_updates=True,
       allowed_updates=Update.ALL_TYPES,
@@ -137,8 +141,8 @@ if __name__ == "__main__":
   import threading
 
   def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, use_reloader=False)
+    port = int(os.environ.com.get("PORT", 10000) if hasattr(os.environ, "com") else os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)), use_reloader=False)
 
   web_thread = threading.Thread(target=run_web)
   web_thread.daemon = True
