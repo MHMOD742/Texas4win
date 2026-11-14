@@ -22,11 +22,12 @@ def fetch_from_one_store(endpoint):
   try:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     response = requests.get(url, headers=headers, timeout=20)
-    logger.info(f"==> API URL: {url} | Status: {response.status_code}")
-    logger.info(f"==> API RAW Response: {response.text}")
+    logger.info(f"=== ONE STORE API DEBUG [{endpoint}] ===")
+    logger.info(f"Status Code: {response.status_code}")
+    logger.info(f"Response Body: {response.text}")
     return response.json()
   except Exception as e:
-    logger.error(f"==> API Error on {endpoint}: {e}")
+    logger.error(f"API Error on {endpoint}: {e}")
     return None
 
 
@@ -68,11 +69,9 @@ def home():
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
-  """استقبال وتجهيز الردود بشكل مباشر وبدون أي أخطاء في الحلقات البرمجية"""
   try:
     data = flask_request.get_json(force=True)
     
-    # معالجة الرسائل النصية مثل /start
     if "message" in data:
       msg = data["message"]
       chat_id = msg["chat"]["id"]
@@ -92,14 +91,12 @@ def webhook():
         }
         send_telegram_message(chat_id, welcome_msg, keyboard)
 
-    # معالجة ضغطات الأزرار (Callback Queries)
     elif "callback_query" in data:
       query = data["callback_query"]
       chat_id = query["message"]["chat"]["id"]
       message_id = query["message"]["message_id"]
       callback_data = query["data"]
 
-      # الرد على ضغطة الزر لإيقاف التحميل
       requests.post(
           f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery",
           json={"callback_query_id": query["id"]},
@@ -107,10 +104,12 @@ def webhook():
       )
 
       if callback_data == "fetch_live_data":
-        # جلب البيانات من وان ستور
+        # فحص المسارات المتعددة وجلبها لطباعتها في الـ Logs
         api_data = fetch_from_one_store("products")
-        if not api_data or (isinstance(api_data, dict) and not api_data.get("data") and not api_data.get("products")):
+        if not api_data:
           api_data = fetch_from_one_store("categories")
+        if not api_data:
+          api_data = fetch_from_one_store("services")
 
         inline_keyboard = []
         
@@ -119,15 +118,17 @@ def webhook():
           if isinstance(api_data, list):
             items = api_data
           elif isinstance(api_data, dict):
-            for key in ["data", "products", "categories", "items", "result"]:
+            for key in ["data", "products", "categories", "items", "result", "services"]:
               if key in api_data and isinstance(api_data[key], list):
                 items = api_data[key]
                 break
+            if not items and "name" in api_data:
+              items = [api_data]
 
           for item in items:
             if isinstance(item, dict):
-              name = item.get("name", item.get("title", "منتج بدون اسم"))
-              item_id = str(item.get("id", ""))
+              name = item.get("name", item.get("title", item.get("service_name", "منتج بدون اسم")))
+              item_id = str(item.get("id", item.get("service_id", "")))
               inline_keyboard.append([{"text": f"📦 {name}", "callback_data": f"item_{item_id}"}])
 
         if not inline_keyboard:
@@ -181,5 +182,5 @@ def setup_webhook():
 
 if __name__ == "__main__":
   setup_webhook()
-  port = int(os.environ.get("PORT", 10000))
-  app.run(host="0.0.0.0", port=port, use_reloader=False)
+  port = int(os.environ.com.get("PORT", 10000) if hasattr(os.environ, "com") else os.environ.get("PORT", 10000))
+  app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)), use_reloader=False)
