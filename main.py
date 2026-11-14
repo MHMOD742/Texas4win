@@ -1,6 +1,6 @@
 import logging
 import os
-from flask import Flask
+from flask import Flask, request as flask_request
 import requests
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -20,13 +20,15 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
 ONE_STORE_API_URL = "https://one1store.com/api"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
+RENDER_URL = "https://texas4win-1.onrender.com"
 
 app = Flask(__name__)
 
-
-@app.route("/")
-def home():
-  return "One Store Telegram Bot is running perfectly!"
+# تهيئة تطبيق تيليجرام
+request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
+application = (
+    ApplicationBuilder().token(BOT_TOKEN).request(request_settings).build()
+)
 
 
 def fetch_from_one_store(endpoint):
@@ -112,37 +114,43 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def main():
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_handler))
+
+
+@app.route("/")
+def home():
+  return "One Store Telegram Bot Webhook is running perfectly!"
+
+
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+  """استقبال تحديثات تيليجرام عبر الـ Webhook بدون أي تعارض"""
   try:
-    requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
-  except Exception:
-    pass
+    json_data = flask_request.get_json(force=True)
+    update = Update.de_json(json_data, application.bot)
+    
+    # تشغيل التطبيق بشكل غير متزامن لمعالجة الرسالة
+    import asyncio
+    asyncio.run(application.initialize())
+    asyncio.run(application.process_update(update))
+    
+    return "OK", 200
+  except Exception as e:
+    logger.error(f"Webhook Error: {e}")
+    return "Error", 500
 
-  request_settings = HTTPXRequest(connect_timeout=30.0, read_timeout=30.0)
-  application = (
-      ApplicationBuilder().token(BOT_TOKEN).request(request_settings).build()
-  )
 
-  application.add_handler(CommandHandler("start", start))
-  application.add_handler(CallbackQueryHandler(button_handler))
-
-  logger.info("Starting bot cleanly...")
-  application.run_polling(
-      drop_pending_updates=True,
-      allowed_updates=Update.ALL_TYPES,
-      stop_signals=None,
-  )
+def setup_webhook():
+  try:
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={RENDER_URL}/{BOT_TOKEN}"
+    response = requests.get(url, timeout=10)
+    logger.info(f"Set Webhook Response: {response.text}")
+  except Exception as e:
+    logger.error(f"Failed to set webhook: {e}")
 
 
 if __name__ == "__main__":
-  import threading
-
-  def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port, use_reloader=False)
-
-  web_thread = threading.Thread(target=run_web)
-  web_thread.daemon = True
-  web_thread.start()
-
-  main()
+  setup_webhook()
+  port = int(os.environ.get("PORT", 10000))
+  app.run(host="0.0.0.0", port=port, use_reloader=False)
