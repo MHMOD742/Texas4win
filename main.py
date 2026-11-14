@@ -68,7 +68,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await query.answer()
 
   if query.data == "fetch_live_data":
-    # تجربة جلب المنتجات أو الأقسام
     data = fetch_from_one_store("products")
     if not data or (isinstance(data, dict) and not data.get("data") and not data.get("products")):
       data = fetch_from_one_store("categories")
@@ -114,7 +113,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-  # تنظيف أي Webhook قديم لتجنب أي تعارض
   try:
     requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true", timeout=10)
   except Exception:
