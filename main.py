@@ -18,49 +18,45 @@ API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 app = Flask(__name__)
 USER_STATE = {}
 
-def fetch_products_from_one_store():
+def send_order_to_one_store(product_id, player_id):
+  """دالة لتجربة إرسال الطلب أوتوماتيكياً عبر POST API للموقع"""
   headers = {
       "Authorization": f"Bearer {API_TOKEN}",
       "Accept": "application/json",
       "Content-Type": "application/json"
   }
   
-  # مسارات دقيقة ومحدثة لتجنب خطأ 404
+  # بيانات الطلب التجريبية المحتملة
+  payload = {
+      "product_id": product_id,
+      "player_id": player_id,
+      "quantity": 1
+  }
+  
+  # مسارات إنشاء الطلبات المحتملة في لوحات المتاجر
   endpoints = [
-      "api/v1/products",
-      "api/store/products",
-      "api/user/products",
-      "api/v1/services",
-      "api/items",
-      "v1/products"
+      "api/v1/orders",
+      "api/orders",
+      "api/order",
+      "api/v1/order/store",
+      "orders"
   ]
   
   for endpoint in endpoints:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
     try:
-      logger.info(f"Trying API URL: {url}")
-      response = requests.get(url, headers=headers, timeout=15)
-      logger.info(f"Response Status: {response.status_code}")
-      logger.info(f"Response Text: {response.text[:300]}")
+      logger.info(f"Trying POST Order URL: {url} with payload {payload}")
+      response = requests.post(url, json=payload, headers=headers, timeout=15)
+      logger.info(f"POST Response Status: {response.status_code}")
+      logger.info(f"POST Response Text: {response.text[:300]}")
       
-      if response.status_code == 200:
-        data = response.json()
-        items = []
-        if isinstance(data, list):
-          items = data
-        elif isinstance(data, dict):
-          for key in ["data", "products", "items", "result", "list"]:
-            if key in data and isinstance(data[key], list):
-              items = data[key]
-              break
-        
-        if items:
-          logger.info(f"Successfully fetched {len(items)} products from {endpoint}")
-          return items
+      if response.status_code in [200, 201]:
+        logger.info(f"Successfully placed order via {endpoint}!")
+        return True
     except Exception as e:
-      logger.error(f"Error fetching from {endpoint}: {e}")
+      logger.error(f"Error posting order to {endpoint}: {e}")
       
-  return None
+  return False
 
 def send_telegram_message(chat_id, text, reply_markup=None):
   url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -84,7 +80,7 @@ def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
 
 @app.route("/")
 def home():
-  return "One Store Live API Bot is running!"
+  return "One Store Automation Bot is running!"
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -102,38 +98,51 @@ def webhook():
           del USER_STATE[chat_id]
 
         welcome_msg = (
-            f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي 🎮🔥\n\n"
-            "اختر من الأزرار بالأسفل لتصفح المنتجات الحية من متجرك:"
+            f"أهلاً بك يا أسطورة *{user_name}* في متجر الشحن الرسمي 🎮🔥\n\n"
+            "اختر باقتك المطلوبة لبدء الطلب الآلي:"
         )
         keyboard = {
             "inline_keyboard": [
-                [{"text": "🛒 تصفح المنتجات الحية", "callback_data": "fetch_live_products"}],
-                [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
+                [{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60_143899"}],
+                [{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325_700000"}]
             ]
         }
         send_telegram_message(chat_id, welcome_msg, keyboard)
 
       elif chat_id in USER_STATE:
         state_data = USER_STATE[chat_id]
+        product_id = state_data["product_id"]
         product_name = state_data["product_name"]
         player_id = text.strip()
 
         del USER_STATE[chat_id]
 
-        confirmation_msg = (
-            f"✅ تم استلام طلبك بنجاح يا أسطورة!\n\n"
-            f"📦 المنتج: *{product_name}*\n"
-            f"🆔 آيدي اللاعب: `{player_id}`\n\n"
-            "يرجى تحويل المبلغ عبر (شام كاش) وإرسال صورة الإيصال هنا للتنفيذ الفوري!"
-        )
+        # محاولة إرسال الطلب أوتوماتيكياً للموقع
+        api_success = send_order_to_one_store(product_id, player_id)
+
+        if api_success:
+          confirmation_msg = (
+              f"✅ *تم إرسال طلبك وتنفيذه أوتوماتيكياً عبر النظام!* 🚀\n\n"
+              f"📦 المنتج: *{product_name}*\n"
+              f"🆔 آيدي اللاعب: `{player_id}`\n\n"
+              "تم شحن حسابك بنجاح!"
+          )
+        else:
+          confirmation_msg = (
+              f"✅ *تم استلام طلبك بنجاح يا أسطورة!*\n\n"
+              f"📦 المنتج: *{product_name}*\n"
+              f"🆔 آيدي اللاعب: `{player_id}`\n\n"
+              "يرجى تحويل المبلغ عبر (شام كاش) وإرسال الإيصال للتنفيذ الفوري!"
+          )
+        
         send_telegram_message(chat_id, confirmation_msg)
 
         admin_notification = (
-            f"🚨 *طلب شراء جديد من البوت!* 🚨\n\n"
-            f"👤 اسم المستخدم: {user_name}\n"
-            f"💬 معرف المستخدم: `{chat_id}`\n"
+            f"🚨 *طلب شراء جديد في البوت!* 🚨\n\n"
+            f"👤 الزبون: {user_name} (`{chat_id}`)\n"
             f"📦 المنتج: *{product_name}*\n"
-            f"🆔 آيدي اللاعب: `{player_id}`"
+            f"🆔 الآيدي: `{player_id}`\n"
+            f"⚙️ حالة الأتمتة: {'تم إرساله للموقع أوتوماتيكياً' if api_success else 'يحتاج تنفيذ يدوي'}"
         )
         send_telegram_message(ADMIN_TELEGRAM_ID, admin_notification)
 
@@ -149,74 +158,41 @@ def webhook():
           timeout=5
       )
 
-      if callback_data == "fetch_live_products":
-        api_items = fetch_products_from_one_store()
-        inline_keyboard = []
-
-        if api_items:
-          for item in api_items:
-            name = item.get("name", item.get("title", "منتج"))
-            price = item.get("price", "")
-            item_id = str(item.get("id", ""))
-            button_text = f"📦 {name}" + (f" - {price}" if price else "")
-            inline_keyboard.append([{"text": button_text, "callback_data": f"prod_{item_id}"}])
+      if callback_data.startswith("prod_"):
+        parts = callback_data.split("_")
+        prod_id = parts[1]
+        raw_price = parts[2]
         
-        if not inline_keyboard:
-          inline_keyboard.append([{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60"}])
-          inline_keyboard.append([{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325"}])
+        product_name = f"باقة {prod_id} شدة (UC)"
+        formatted_price = f"{int(raw_price):,} ليرة سورية"
 
-        inline_keyboard.append([{"text": "🔙 رجوع للقائمة الرئيسية", "callback_data": "main_menu"}])
-
-        edit_telegram_message(
-            chat_id,
-            message_id,
-            "📂 قائمة المنتجات المتاحة:",
-            {"inline_keyboard": inline_keyboard}
-        )
-
-      elif callback_data.startswith("prod_"):
-        product_id = callback_data.replace("prod_", "")
-        
-        product_name = f"منتج رقم {product_id}"
-        if product_id == "60":
-          product_name = "باقة 60 شدة (UC)"
-        elif product_id == "325":
-          product_name = "باقة 325 شدة (UC)"
-
-        USER_STATE[chat_id] = {"product_name": product_name}
+        USER_STATE[chat_id] = {
+            "product_id": prod_id,
+            "product_name": product_name
+        }
 
         prompt_msg = (
-            f"لقد اخترت: *{product_name}*\n\n"
-            "👇 **الرجاء إرسال الآيدي (Player ID) الخاص بك في اللعبة الآن بالدردشة:**"
+            f"لقد اخترت: *{product_name}* - *{formatted_price}*\n\n"
+            "👇 **الرجاء إرسال آيدي اللعبة (Player ID) في الدردشة الآن:**"
         )
         keyboard = {
             "inline_keyboard": [
-                [{"text": "🔙 عودة لقائمة المنتجات", "callback_data": "fetch_live_products"}],
-                [{"text": "🏠 القائمة الرئيسية", "callback_data": "main_menu"}]
+                [{"text": "🔙 إلغاء والعودة", "callback_data": "cancel"}]
             ]
         }
         edit_telegram_message(chat_id, message_id, prompt_msg, keyboard)
 
-      elif callback_data == "main_menu":
+      elif callback_data == "cancel":
         if chat_id in USER_STATE:
           del USER_STATE[chat_id]
-        welcome_msg = "أهلاً بك مرة أخرى في القائمة الرئيسية للمتجر 🎮🔥"
+        welcome_msg = "تم الإلغاء. أهلاً بك في القائمة الرئيسية 🎮🔥"
         keyboard = {
             "inline_keyboard": [
-                [{"text": "🛒 تصفح المنتجات الحية", "callback_data": "fetch_live_products"}],
-                [{"text": "📞 التواصل والدعم", "callback_data": "support"}]
+                [{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60_143899"}],
+                [{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325_700000"}]
             ]
         }
         edit_telegram_message(chat_id, message_id, welcome_msg, keyboard)
-
-      elif callback_data == "support":
-        support_msg = "للتواصل والدعم الفني:\n🆔 Account ID: 7383417915"
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "🔙 رجوع", "callback_data": "main_menu"}]
-            ]
-        }
-        edit_telegram_message(chat_id, message_id, support_msg, keyboard)
 
     return "OK", 200
   except Exception as e:
@@ -232,5 +208,5 @@ def setup_webhook():
 
 if __name__ == "__main__":
   setup_webhook()
-  port = int(os.environ.get("PORT", 10000))
+  port = int(os.environ.0.get("PORT", 10000) if hasattr(os.environ, 'get') else 10000)
   app.run(host="0.0.0.0", port=port, use_reloader=False)
