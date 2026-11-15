@@ -31,13 +31,12 @@ def webhook():
             text = message.get("text", "").strip()
 
             if text == "/products":
-                # تعديل الهيدر وطريقة المصادقة لتتوافق مع معايير نمر كارد
+                # إرسال التوكن في الـ Headers وأيضاً كـ Parameter لضمان القبول
                 headers = {
-                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
-                    "api-token": NIMER_API_TOKEN,
                     "Accept": "application/json"
                 }
-                products_url = f"{NIMER_API_URL}/client/api/products/"
+                # وضع التوكن في الرابط مباشرة كـ Query Parameter إن تطلب الأمر
+                products_url = f"{NIMER_API_URL}/client/api/products/?api-token={NIMER_API_TOKEN}"
                 
                 response = requests.get(products_url, headers=headers)
                 
