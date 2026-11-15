@@ -1,212 +1,66 @@
-import logging
 import os
-from flask import Flask, request as flask_request
 import requests
+from flask import Flask, request
+from telegram import Update, Bot
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# بيانات الإعداد والتوصيل مع نمر كارد وتليجرام
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "حط_توكن_البوت_هنا")
+NIMER_API_URL = "https://nemer-card.com"
+NIMER_API_TOKEN = "WVJccdFfXYncjTbCXbEQmyPxwK32KIVTaOXS"  # التوكن الخاص بك[span_2](start_span)[span_2](end_span)
 
-BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
-RENDER_URL = "https://texas4win-1.onrender.com"
-ADMIN_TELEGRAM_ID = "7383417915"
+app_flask = Flask(__name__)
+bot = Bot(token=TOKEN)
 
-ONE_STORE_API_URL = "https://api.one1store.com"
-API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """رسالة البداية للترحيب بالزبون"""
+    await update.message.reply_text(
+        "أهلاً بك يا أسطورة في متجرنا الرقمي! 🎮🔥\n"
+        "للهيمنة وشحن شداتك أوتوماتيكياً، استخدم الأمر /products لعرض المنتجات المتاحة حالياً من المزود."
+    )
 
-app = Flask(__name__)
-USER_STATE = {}
-
-def send_order_to_one_store(product_id, player_id):
-  """دالة لتجربة إرسال الطلب أوتوماتيكياً عبر POST API للموقع"""
-  headers = {
-      "Authorization": f"Bearer {API_TOKEN}",
-      "Accept": "application/json",
-      "Content-Type": "application/json"
-  }
-  
-  # بيانات الطلب التجريبية المحتملة
-  payload = {
-      "product_id": product_id,
-      "player_id": player_id,
-      "quantity": 1
-  }
-  
-  # مسارات إنشاء الطلبات المحتملة في لوحات المتاجر
-  endpoints = [
-      "api/v1/orders",
-      "api/orders",
-      "api/order",
-      "api/v1/order/store",
-      "orders"
-  ]
-  
-  for endpoint in endpoints:
-    url = f"{ONE_STORE_API_URL}/{endpoint}"
-    try:
-      logger.info(f"Trying POST Order URL: {url} with payload {payload}")
-      response = requests.post(url, json=payload, headers=headers, timeout=15)
-      logger.info(f"POST Response Status: {response.status_code}")
-      logger.info(f"POST Response Text: {response.text[:300]}")
-      
-      if response.status_code in [200, 201]:
-        logger.info(f"Successfully placed order via {endpoint}!")
-        return True
-    except Exception as e:
-      logger.error(f"Error posting order to {endpoint}: {e}")
-      
-  return False
-
-def send_telegram_message(chat_id, text, reply_markup=None):
-  url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-  payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
-  if reply_markup:
-    payload["reply_markup"] = reply_markup
-  try:
-    requests.post(url, json=payload, timeout=10)
-  except Exception as e:
-    logger.error(f"TG Send Error: {e}")
-
-def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
-  url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
-  payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
-  if reply_markup:
-    payload["reply_markup"] = reply_markup
-  try:
-    requests.post(url, json=payload, timeout=10)
-  except Exception as e:
-    logger.error(f"TG Edit Error: {e}")
-
-@app.route("/")
-def home():
-  return "One Store Automation Bot is running!"
-
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-  try:
-    data = flask_request.get_json(force=True)
+async def get_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """أمر لسحب وعرض المنتجات مباشرة من نمر كارد"""
+    headers = {
+        "api-token": NIMER_API_TOKEN
+    }
+    url = f"{NIMER_API_URL}/client/api/products/"
     
-    if "message" in data:
-      msg = data["message"]
-      chat_id = msg["chat"]["id"]
-      user_name = msg.get("from", {}).get("first_name", "صديقي")
-      text = msg.get("text", "")
-
-      if text.startswith("/start"):
-        if chat_id in USER_STATE:
-          del USER_STATE[chat_id]
-
-        welcome_msg = (
-            f"أهلاً بك يا أسطورة *{user_name}* في متجر الشحن الرسمي 🎮🔥\n\n"
-            "اختر باقتك المطلوبة لبدء الطلب الآلي:"
-        )
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60_143899"}],
-                [{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325_700000"}]
-            ]
-        }
-        send_telegram_message(chat_id, welcome_msg, keyboard)
-
-      elif chat_id in USER_STATE:
-        state_data = USER_STATE[chat_id]
-        product_id = state_data["product_id"]
-        product_name = state_data["product_name"]
-        player_id = text.strip()
-
-        del USER_STATE[chat_id]
-
-        # محاولة إرسال الطلب أوتوماتيكياً للموقع
-        api_success = send_order_to_one_store(product_id, player_id)
-
-        if api_success:
-          confirmation_msg = (
-              f"✅ *تم إرسال طلبك وتنفيذه أوتوماتيكياً عبر النظام!* 🚀\n\n"
-              f"📦 المنتج: *{product_name}*\n"
-              f"🆔 آيدي اللاعب: `{player_id}`\n\n"
-              "تم شحن حسابك بنجاح!"
-          )
+    try:
+        # إرسال طلب GET لسحب المنتجات حسب التوثيق[span_3](start_span)[span_3](end_span)
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        
+        if response.status_code == 200 and data:
+            products_text = "📦 **قائمة المنتجات المتاحة حالياً:**\n\n"
+            # افتراض أن المنتجات تأتي على شكل قائمة
+            items = data.get('data', data) if isinstance(data, dict) else data
+            
+            for item in items[:10]:  # عرض أول 10 منتجات كبداية
+                name = item.get('name', 'منتج رقمي')
+                price = item.get('price', 'غير محدد')
+                product_id = item.get('id', '')
+                products_text += f"🔹 **{name}**\n💰 السعر: {price}\n🆔 المعرف: `{product_id}`\n\n"
+            
+            await update.message.reply_text(products_text, parse_mode="Markdown")
         else:
-          confirmation_msg = (
-              f"✅ *تم استلام طلبك بنجاح يا أسطورة!*\n\n"
-              f"📦 المنتج: *{product_name}*\n"
-              f"🆔 آيدي اللاعب: `{player_id}`\n\n"
-              "يرجى تحويل المبلغ عبر (شام كاش) وإرسال الإيصال للتنفيذ الفوري!"
-          )
-        
-        send_telegram_message(chat_id, confirmation_msg)
+            await update.message.reply_text("⚠️ عذراً، لم يتم العثور على منتجات متاحة حالياً أو هناك خطأ في الاستعلام.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ حدث خطأ أثناء الاتصال بالمزود: {str(e)}")
 
-        admin_notification = (
-            f"🚨 *طلب شراء جديد في البوت!* 🚨\n\n"
-            f"👤 الزبون: {user_name} (`{chat_id}`)\n"
-            f"📦 المنتج: *{product_name}*\n"
-            f"🆔 الآيدي: `{player_id}`\n"
-            f"⚙️ حالة الأتمتة: {'تم إرساله للموقع أوتوماتيكياً' if api_success else 'يحتاج تنفيذ يدوي'}"
-        )
-        send_telegram_message(ADMIN_TELEGRAM_ID, admin_notification)
-
-    elif "callback_query" in data:
-      query = data["callback_query"]
-      chat_id = query["message"]["chat"]["id"]
-      message_id = query["message"]["message_id"]
-      callback_data = query["data"]
-
-      requests.post(
-          f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery",
-          json={"callback_query_id": query["id"]},
-          timeout=5
-      )
-
-      if callback_data.startswith("prod_"):
-        parts = callback_data.split("_")
-        prod_id = parts[1]
-        raw_price = parts[2]
-        
-        product_name = f"باقة {prod_id} شدة (UC)"
-        formatted_price = f"{int(raw_price):,} ليرة سورية"
-
-        USER_STATE[chat_id] = {
-            "product_id": prod_id,
-            "product_name": product_name
-        }
-
-        prompt_msg = (
-            f"لقد اخترت: *{product_name}* - *{formatted_price}*\n\n"
-            "👇 **الرجاء إرسال آيدي اللعبة (Player ID) في الدردشة الآن:**"
-        )
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "🔙 إلغاء والعودة", "callback_data": "cancel"}]
-            ]
-        }
-        edit_telegram_message(chat_id, message_id, prompt_msg, keyboard)
-
-      elif callback_data == "cancel":
-        if chat_id in USER_STATE:
-          del USER_STATE[chat_id]
-        welcome_msg = "تم الإلغاء. أهلاً بك في القائمة الرئيسية 🎮🔥"
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60_143899"}],
-                [{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325_700000"}]
-            ]
-        }
-        edit_telegram_message(chat_id, message_id, welcome_msg, keyboard)
-
-    return "OK", 200
-  except Exception as e:
-    logger.error(f"Webhook Error: {e}")
+@app_flask.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    """استقبال التحديثات من تيليجرام"""
+    json_str = request.get_data().astype(str) if hasattr(request.get_data(), 'astype') else request.get_data().decode('utf-8')
+    update = Update.de_json(requests.compat.json.loads(json_str), bot)
+    # ملاحظة: يمكن ربط المعالجات هنا أو عبر Application
     return "OK", 200
 
-def setup_webhook():
-  try:
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={RENDER_URL}/{BOT_TOKEN}"
-    requests.get(url, timeout=10)
-  except Exception as e:
-    logger.error(f"Webhook setup error: {e}")
+@app_flask.route("/")
+def index():
+    return "Bot is running successfully!", 200
 
 if __name__ == "__main__":
-  setup_webhook()
-  port = int(os.environ.get("PORT", 10000))
-app.run(host="0.0.0.0", port=port, use_reloaders=False)
+    # تشغيل سيرفر Flask على المنفذ المطلوب لـ Render
+    port = int(os.environ.get("PORT", 5000))
+    app_flask.run(host="0.0.0.0", port=port)
