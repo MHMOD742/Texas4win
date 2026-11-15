@@ -208,5 +208,5 @@ def setup_webhook():
 
 if __name__ == "__main__":
   setup_webhook()
-  port = int(os.environ.0.get("PORT", 10000) if hasattr(os.environ, 'get') else 10000)
-  app.run(host="0.0.0.0", port=port, use_reloader=False)
+  port = int(os.environ.get("PORT", 10000))
+app.run(host="0.0.0.0", port=port, use_reloaders=False)
