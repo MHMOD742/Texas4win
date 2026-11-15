@@ -31,11 +31,16 @@ def webhook():
             text = message.get("text", "").strip()
 
             if text == "/products":
-                # سحب المنتجات من نمر كارد
-                headers = {"api-token": NIMER_API_TOKEN}
+                # تعديل الهيدرز لتغطية كل احتمالات المصادقة في نمر كارد
+                headers = {
+                    "api-token": NIMER_API_TOKEN,
+                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
+                    "Content-Type": "application/json"
+                }
                 products_url = f"{NIMER_API_URL}/client/api/products/"
                 
                 response = requests.get(products_url, headers=headers)
+                
                 if response.status_code == 200:
                     res_data = response.json()
                     items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
