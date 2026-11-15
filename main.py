@@ -31,16 +31,15 @@ def webhook():
             text = message.get("text", "").strip()
 
             if text == "/products":
-                # الهيدر الأساسي حسب توثيق نمر كارد
+                # تعديل الهيدر وطريقة المصادقة لتتوافق مع معايير نمر كارد
                 headers = {
+                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
                     "api-token": NIMER_API_TOKEN,
                     "Accept": "application/json"
                 }
                 products_url = f"{NIMER_API_URL}/client/api/products/"
                 
                 response = requests.get(products_url, headers=headers)
-                print(f"Nimer API Response Code: {response.status_code}")
-                print(f"Nimer API Response Body: {response.text}")
                 
                 if response.status_code == 200:
                     res_data = response.json()
@@ -67,5 +66,5 @@ def webhook():
     return "OK", 200
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     app_flask.run(host="0.0.0.0", port=port)
