@@ -13,8 +13,8 @@ BOT_TOKEN = "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio"
 RENDER_URL = "https://texas4win-1.onrender.com"
 ADMIN_TELEGRAM_ID = "7383417915"
 
-# بيانات التوثيق الخاصة بحسابك في One Store
-ONE_STORE_API_URL = "https://api.one1store.com/api"
+# الرابط الأساسي المعتمد من لوحة التوثيق في الصورة
+ONE_STORE_API_URL = "https://api.one1store.com"
 API_TOKEN = "6315cd3e0be65d5093b01b8a4f1f482e1266fae0b92f954f"
 
 app = Flask(__name__)
@@ -23,15 +23,15 @@ USER_STATE = {}
 
 
 def fetch_products_from_one_store():
-  """دالة لجلب المنتجات الحقيقية من حسابك في One Store باستخدام التوكن"""
+  """دالة لجلب المنتجات من النطاق الأساسي الصحيح للـ API"""
   headers = {
       "Authorization": f"Bearer {API_TOKEN}",
       "Accept": "application/json",
       "Content-Type": "application/json"
   }
   
-  # تجربة المسارات المحتملة للـ API
-  endpoints = ["products", "v1/products", "items", "services"]
+  # تجربة المسارات المحتملة بناءً على النطاق الأساسي
+  endpoints = ["api/products", "products", "api/v1/products", "v1/products", "api/items"]
   
   for endpoint in endpoints:
     url = f"{ONE_STORE_API_URL}/{endpoint}"
@@ -39,10 +39,10 @@ def fetch_products_from_one_store():
       logger.info(f"Trying API URL: {url}")
       response = requests.get(url, headers=headers, timeout=15)
       logger.info(f"Response Status: {response.status_code}")
+      logger.info(f"Response Text: {response.text[:200]}") # طباعة اول 200 حرف لمعاينة الاستجابة
       
       if response.status_code == 200:
         data = response.json()
-        # استخراج القائمة حسب هيكلة الاستجابة
         items = []
         if isinstance(data, list):
           items = data
@@ -85,7 +85,7 @@ def edit_telegram_message(chat_id, message_id, text, reply_markup=None):
 
 @app.route("/")
 def home():
-  return "One Store Live Products Bot is running!"
+  return "One Store Live API Bot is running!"
 
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
@@ -105,7 +105,7 @@ def webhook():
 
         welcome_msg = (
             f"أهلاً بك يا أسطورة {user_name} في متجر الشحن الرسمي 🎮🔥\n\n"
-            "اختر من الأزرار بالأسفل لتصفح المنتجات المتاحة مباشرة من متجرك:"
+            "اختر من الأزرار بالأسفل لتصفح المنتجات الحية من متجرك:"
         )
         keyboard = {
             "inline_keyboard": [
@@ -152,7 +152,6 @@ def webhook():
       )
 
       if callback_data == "fetch_live_products":
-        # محاولة سحب المنتجات مباشرة من API الموقع
         api_items = fetch_products_from_one_store()
         inline_keyboard = []
 
@@ -164,7 +163,6 @@ def webhook():
             button_text = f"📦 {name}" + (f" - {price}" if price else "")
             inline_keyboard.append([{"text": button_text, "callback_data": f"prod_{item_id}"}])
         
-        # إذا لم يتم جلب منتجات لأي سبب، يتم عرض باقات افتراضية لضمان عمل البوت
         if not inline_keyboard:
           inline_keyboard.append([{"text": "📦 باقة 60 شدة (UC) - 143,899 ليرة", "callback_data": "prod_60"}])
           inline_keyboard.append([{"text": "📦 باقة 325 شدة (UC) - 700,000 ليرة", "callback_data": "prod_325"}])
@@ -174,14 +172,13 @@ def webhook():
         edit_telegram_message(
             chat_id,
             message_id,
-            "📂 قائمة المنتجات المتوفرة:",
+            "📂 قائمة المنتجات المتاحة:",
             {"inline_keyboard": inline_keyboard}
         )
 
       elif callback_data.startswith("prod_"):
         product_id = callback_data.replace("prod_", "")
         
-        # محاولة جلب اسم المنتج أو تعيين اسم افتراضي بناءً على الاختيار
         product_name = f"منتج رقم {product_id}"
         if product_id == "60":
           product_name = "باقة 60 شدة (UC)"
