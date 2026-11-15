@@ -31,15 +31,16 @@ def webhook():
             text = message.get("text", "").strip()
 
             if text == "/products":
-                # تعديل الهيدرز لتغطية كل احتمالات المصادقة في نمر كارد
+                # الهيدر الأساسي حسب توثيق نمر كارد
                 headers = {
                     "api-token": NIMER_API_TOKEN,
-                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
-                    "Content-Type": "application/json"
+                    "Accept": "application/json"
                 }
                 products_url = f"{NIMER_API_URL}/client/api/products/"
                 
                 response = requests.get(products_url, headers=headers)
+                print(f"Nimer API Response Code: {response.status_code}")
+                print(f"Nimer API Response Body: {response.text}")
                 
                 if response.status_code == 200:
                     res_data = response.json()
