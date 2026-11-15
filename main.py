@@ -2,12 +2,11 @@ import os
 import requests
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import Application, CommandHandler, ContextTypes
 
 # إعدادات التوكن والبيانات الأساسية
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "9257361616:AAFtR4Cq-9-3bPMIEoAVK5em-2HoYUSAuio")
 NIMER_API_URL = "https://nemer-card.com"
-NIMER_API_TOKEN = "WVJccdFfXYncjTbCXbEQmyPxwK32KIVTaOXS[span_0](start_span)[span_1](start_span)"[span_0](end_span)[span_1](end_span)
+NIMER_API_TOKEN = "WVJccdFfXYncjTbCXbEQmyPxwK32KIVTaOXS"
 
 app_flask = Flask(__name__)
 bot = Bot(token=TOKEN)
@@ -22,7 +21,6 @@ def webhook():
     if request.method == "POST":
         try:
             json_data = request.get_json(force=True)
-            # معالجة أوامر البت أو جلب المنتجات
             message = json_data.get("message", {})
             text = message.get("text", "")
             chat_id = message.get("chat", {}).get("id")
@@ -30,7 +28,7 @@ def webhook():
             if text == "/products" and chat_id:
                 # سحب المنتجات من نمر كارد عند طلب الأمر
                 headers = {"api-token": NIMER_API_TOKEN}
-                url = f"{NIMER_API_URL}/client/api/products/[span_2](start_span)"[span_2](end_span)
+                url = f"{NIMER_API_URL}/client/api/products/"
                 
                 response = requests.get(url, headers=headers)
                 if response.status_code == 200:
