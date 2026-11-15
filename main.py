@@ -31,15 +31,13 @@ def webhook():
             text = message.get("text", "").strip()
 
             if text == "/products" or text == "/test":
-                # إرسال التوكن بعدة طرق في نفس الوقت لضمان قبول المزود له
+                # إرسال التوكن بالطريقة التي يطلبها موقع نمر كارد حصراً (عبر الـ URL مع الهيدر القياسي)
                 headers = {
-                    "api-token": NIMER_API_TOKEN,
-                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
                     "Accept": "application/json"
                 }
                 
-                # تجربة الرابط مع تمرير التوكن هيدر وفي الرابط إن لم ينجح
-                products_url = f"{NIMER_API_URL}/client/api/products/"
+                # تمرير التوكن مباشرة في الرابط مع المسار الصحيح للمنتجات
+                products_url = f"{NIMER_API_URL}/client/api/products/?api-token={NIMER_API_TOKEN}"
                 
                 response = requests.get(products_url, headers=headers)
                 print(f"Status Code: {response.status_code}")
@@ -59,13 +57,13 @@ def webhook():
                                 products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
                             send_telegram_message(chat_id, products_text)
                         else:
-                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن القائمة فارغة حالياً.")
+                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات فارغة حالياً.")
                     except Exception as parse_err:
                         send_telegram_message(chat_id, f"⚠️ رد المزود غير صالح: {str(parse_err)}")
                 else:
-                    send_telegram_message(chat_id, f"⚠️ خطأ في الاتصال بالمزود (رمز الاستجابة: {response.status_code})")
+                    send_telegram_message(chat_id, f"⚠️ خطأ في الاتصال بالمزود (رمز الاستجابة: {response.status_code}) - تأكد من صلاحية التوكن.")
             else:
-                send_telegram_message(chat_id, "أهلاً بك يا أسطورة! أرسل الأمر /products لجلب المنتجات من نمر كارد.")
+                send_telegram_message(chat_id, "أهلاً بك يا أسطورة! أرسل الأمر /products لجلب المنتجات مباشرة من نمر كارد.")
                 
     except Exception as e:
         print(f"Error: {str(e)}")
