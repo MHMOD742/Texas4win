@@ -30,34 +30,42 @@ def webhook():
             chat_id = message["chat"]["id"]
             text = message.get("text", "").strip()
 
-            if text == "/products":
-                # إرسال التوكن في الـ Headers وأيضاً كـ Parameter لضمان القبول
+            if text == "/products" or text == "/test":
+                # إرسال التوكن بعدة طرق في نفس الوقت لضمان قبول المزود له
                 headers = {
+                    "api-token": NIMER_API_TOKEN,
+                    "Authorization": f"Bearer {NIMER_API_TOKEN}",
                     "Accept": "application/json"
                 }
-                # وضع التوكن في الرابط مباشرة كـ Query Parameter إن تطلب الأمر
-                products_url = f"{NIMER_API_URL}/client/api/products/?api-token={NIMER_API_TOKEN}"
+                
+                # تجربة الرابط مع تمرير التوكن هيدر وفي الرابط إن لم ينجح
+                products_url = f"{NIMER_API_URL}/client/api/products/"
                 
                 response = requests.get(products_url, headers=headers)
+                print(f"Status Code: {response.status_code}")
+                print(f"Response Text: {response.text}")
                 
                 if response.status_code == 200:
-                    res_data = response.json()
-                    items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
-                    
-                    if items:
-                        products_text = "📦 **قائمة المنتجات المتاحة من نمر كارد:**\n\n"
-                        for item in items[:10]:
-                            name = item.get('name', 'منتج رقمي')
-                            price = item.get('price', 'غير محدد')
-                            prod_id = item.get('id', '')
-                            products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
-                        send_telegram_message(chat_id, products_text)
-                    else:
-                        send_telegram_message(chat_id, "⚠️ لا توجد منتجات متاحة حالياً في الحساب.")
+                    try:
+                        res_data = response.json()
+                        items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
+                        
+                        if items:
+                            products_text = "📦 **قائمة المنتجات المتاحة من نمر كارد:**\n\n"
+                            for item in items[:10]:
+                                name = item.get('name', 'منتج رقمي')
+                                price = item.get('price', 'غير محدد')
+                                prod_id = item.get('id', '')
+                                products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
+                            send_telegram_message(chat_id, products_text)
+                        else:
+                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن القائمة فارغة حالياً.")
+                    except Exception as parse_err:
+                        send_telegram_message(chat_id, f"⚠️ رد المزود غير صالح: {str(parse_err)}")
                 else:
-                    send_telegram_message(chat_id, f"⚠️ فشل الاتصال بالمزود (رمز الخطأ: {response.status_code})")
+                    send_telegram_message(chat_id, f"⚠️ خطأ في الاتصال بالمزود (رمز الاستجابة: {response.status_code})")
             else:
-                send_telegram_message(chat_id, "أهلاً بك يا أسطورة! أرسل الأمر /products لعرض المنتجات المتاحة من نمر كارد.")
+                send_telegram_message(chat_id, "أهلاً بك يا أسطورة! أرسل الأمر /products لجلب المنتجات من نمر كارد.")
                 
     except Exception as e:
         print(f"Error: {str(e)}")
