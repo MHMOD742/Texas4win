@@ -2,11 +2,7 @@ import os
 import requests
 from flask import Flask, request
 
-# توكن بوتك الجديد الخاص بتيليجرام
 TELEGRAM_BOT_TOKEN = "9250643163:AAGdWbppH2M5YzPMNG5QOH_Hp3RVH29KDYo"
-ADMIN_TELEGRAM_ID = 7383417915
-
-# إعدادات One Store API
 ONE_STORE_API_URL = "https://api.one1store.com"
 ONE_STORE_TOKEN = "5cd3e0be65d5093b018b4f1f482e1266fae0b92f954f"
 
@@ -23,7 +19,7 @@ def send_telegram_message(chat_id, text):
 
 @app_flask.route("/", methods=["GET"])
 def index():
-    return "Bot is running perfectly and linked to One Store!", 200
+    return "Bot is running perfectly!", 200
 
 @app_flask.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -32,14 +28,12 @@ def webhook():
         if "message" in data:
             message = data["message"]
             chat_id = message["chat"]["id"]
-            user_id = message["from"]["id"]
             text = message.get("text", "").strip()
 
             if text == "/start":
                 send_telegram_message(chat_id, "أهلاً بك يا أسطورة في متجرك الرسمي للخدمات الرقمية 🎮🔥\n\nاختر من الأوامر بالأسفل لتصفح المنتجات:")
             
             elif text == "/products":
-                # سحب المنتجات من One Store باستخدام التوكن الموثق
                 headers = {
                     "Authorization": f"Bearer {ONE_STORE_TOKEN}",
                     "api-token": ONE_STORE_TOKEN,
@@ -50,21 +44,24 @@ def webhook():
                 response = requests.get(products_url, headers=headers)
                 
                 if response.status_code == 200:
-                    res_data = response.json()
-                    items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
-                    
-                    if items:
-                        products_text = "📦 **قائمة المنتجات المتاحة من متجرك:**\n\n"
-                        for item in items[:15]:
-                            name = item.get('name', 'منتج رقمي')
-                            price = item.get('price', 'غير محدد')
-                            prod_id = item.get('id', '')
-                            products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
-                        send_telegram_message(chat_id, products_text)
-                    else:
-                        send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات فارغة حالياً.")
+                    try:
+                        res_data = response.json()
+                        items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
+                        
+                        if items:
+                            products_text = "📦 **قائمة المنتجات المتاحة من متجرك:**\n\n"
+                            for item in items[:15]:
+                                name = item.get('name', 'منتج رقمي')
+                                price = item.get('price', 'غير محدد')
+                                prod_id = item.get('id', '')
+                                products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
+                            send_telegram_message(chat_id, products_text)
+                        else:
+                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات فارغة حالياً.")
+                    except Exception:
+                        send_telegram_message(chat_id, "⚠️ حدث خطأ في معالجة بيانات المنتجات.")
                 else:
-                    send_telegram_message(chat_id, f"⚠️ خطأ في الاتصال بالمزود (رمز الاستجابة: {response.status_code})")
+                    send_telegram_message(chat_id, f"⚠️ خطأ بالمزود ({response.status_code}) - تأكد من تفعيل الـ API في لوحة تحكم المتجر.")
             else:
                 send_telegram_message(chat_id, "أهلاً بك! أرسل الأمر /products لعرض المنتجات المتاحة.")
                 
