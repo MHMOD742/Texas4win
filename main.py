@@ -2,11 +2,11 @@ import os
 import requests
 from flask import Flask, request
 
-# توكن بوتك الجديد على تيليجرام ومعرفك الشخصي
+# توكن بوتك ومعرفك الشخصي
 TELEGRAM_BOT_TOKEN = "9250643163:AAGdWbppH2M5YzPMNG5QOH_Hp3RVH29KDYo"
 ADMIN_TELEGRAM_ID = 7383417915
 
-# بيانات التوثيق الخاصة بمتجرك على One Store
+# إعدادات One Store API الحقيقية
 ONE_STORE_API_URL = "https://api.one1store.com"
 ONE_STORE_TOKEN = "5cd3e0be65d5093b018b4f1f482e1266fae0b92f954f"
 
@@ -23,7 +23,7 @@ def send_telegram_message(chat_id, text):
 
 @app_flask.route("/", methods=["GET"])
 def index():
-    return "Bot is running and ready to fetch products from One Store!", 200
+    return "Bot is running and connected to One Store API!", 200
 
 @app_flask.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -38,27 +38,28 @@ def webhook():
             if text == "/start":
                 send_telegram_message(
                     chat_id, 
-                    f"أهلاً بك يا {user_name} في متجرك الرسمي 🎮🔥\n\nأرسل الأمر /products لعرض المنتجات المتاحة حالياً من متجرك."
+                    f"أهلاً بك يا {user_name} في متجرك الرسمي للخدمات الرقمية 🎮🔥\n\nأرسل الأمر /products لعرض المنتجات الحقيقية المتاحة من متجرك."
                 )
             
             elif text == "/products":
-                # إعداد ترويسة الاتصال مع One Store API
+                # الترويسة القياسية المعتمدة لسحب المنتجات الحقيقية
                 headers = {
                     "Authorization": f"Bearer {ONE_STORE_TOKEN}",
                     "api-token": ONE_STORE_TOKEN,
-                    "Accept": "application/json"
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
                 }
                 products_url = f"{ONE_STORE_API_URL}/client/api/products/"
                 
-                response = requests.get(products_url, headers=headers)
-                
-                if response.status_code == 200:
-                    try:
+                try:
+                    response = requests.get(products_url, headers=headers, timeout=10)
+                    
+                    if response.status_code == 200:
                         res_data = response.json()
                         items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
                         
                         if items:
-                            products_text = "📦 **قائمة المنتجات الحقيقية من متجرك (One Store):**\n\n"
+                            products_text = "📦 **قائمة منتجاتك الحقيقية (One Store):**\n\n"
                             for item in items[:15]:
                                 name = item.get('name', 'منتج رقمي')
                                 price = item.get('price', 'غير محدد')
@@ -67,13 +68,12 @@ def webhook():
                             send_telegram_message(chat_id, products_text)
                         else:
                             send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات في حسابك فارغة حالياً.")
-                    except Exception:
-                        send_telegram_message(chat_id, "⚠️ حدث خطأ في قراءة بيانات المنتجات من المزود.")
-                else:
-                    # في حال ظهر خطأ 401 مرة أخرى، نطبع تفاصيل الرد لنتأكد
-                    send_telegram_message(chat_id, f"⚠️ خطأ بالمزود ({response.status_code}) - تأكد من حفظ إعدادات السماح لكل الأبيات في لوحة تحكم One Store.")
+                    else:
+                        send_telegram_message(chat_id, f"⚠️ خطأ بالمزود ({response.status_code}) - تأكد من صلاحيات التوكن في لوحة تحكم One Store.")
+                except Exception as api_err:
+                    send_telegram_message(chat_id, f"⚠️ حدث خطأ أثناء الاتصال بالمزود: {str(api_err)}")
             else:
-                send_telegram_message(chat_id, "أهلاً بك! أرسل الأمر /products لعرض المنتجات الحقيقية.")
+                send_telegram_message(chat_id, "أهلاً بك! أرسل الأمر /products لعرض منتجات متجرك الحقيقية.")
                 
     except Exception as e:
         print(f"Error: {str(e)}")
