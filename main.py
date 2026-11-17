@@ -2,7 +2,11 @@ import os
 import requests
 from flask import Flask, request
 
+# توكن بوتك الجديد على تيليجرام ومعرفك الشخصي
 TELEGRAM_BOT_TOKEN = "9250643163:AAGdWbppH2M5YzPMNG5QOH_Hp3RVH29KDYo"
+ADMIN_TELEGRAM_ID = 7383417915
+
+# بيانات التوثيق الخاصة بمتجرك على One Store
 ONE_STORE_API_URL = "https://api.one1store.com"
 ONE_STORE_TOKEN = "5cd3e0be65d5093b018b4f1f482e1266fae0b92f954f"
 
@@ -19,7 +23,7 @@ def send_telegram_message(chat_id, text):
 
 @app_flask.route("/", methods=["GET"])
 def index():
-    return "Bot is running perfectly!", 200
+    return "Bot is running and ready to fetch products from One Store!", 200
 
 @app_flask.route(f"/{TELEGRAM_BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -28,12 +32,17 @@ def webhook():
         if "message" in data:
             message = data["message"]
             chat_id = message["chat"]["id"]
+            user_name = message["from"].get("first_name", "صديقي")
             text = message.get("text", "").strip()
 
             if text == "/start":
-                send_telegram_message(chat_id, "أهلاً بك يا أسطورة في متجرك الرسمي للخدمات الرقمية 🎮🔥\n\nاختر من الأوامر بالأسفل لتصفح المنتجات:")
+                send_telegram_message(
+                    chat_id, 
+                    f"أهلاً بك يا {user_name} في متجرك الرسمي 🎮🔥\n\nأرسل الأمر /products لعرض المنتجات المتاحة حالياً من متجرك."
+                )
             
             elif text == "/products":
+                # إعداد ترويسة الاتصال مع One Store API
                 headers = {
                     "Authorization": f"Bearer {ONE_STORE_TOKEN}",
                     "api-token": ONE_STORE_TOKEN,
@@ -49,7 +58,7 @@ def webhook():
                         items = res_data.get('data', res_data) if isinstance(res_data, dict) else res_data
                         
                         if items:
-                            products_text = "📦 **قائمة المنتجات المتاحة من متجرك:**\n\n"
+                            products_text = "📦 **قائمة المنتجات الحقيقية من متجرك (One Store):**\n\n"
                             for item in items[:15]:
                                 name = item.get('name', 'منتج رقمي')
                                 price = item.get('price', 'غير محدد')
@@ -57,13 +66,14 @@ def webhook():
                                 products_text += f"🔹 {name}\n💰 السعر: {price}\n🆔 المعرف: `{prod_id}`\n\n"
                             send_telegram_message(chat_id, products_text)
                         else:
-                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات فارغة حالياً.")
+                            send_telegram_message(chat_id, "⚠️ تم الاتصال بنجاح، ولكن قائمة المنتجات في حسابك فارغة حالياً.")
                     except Exception:
-                        send_telegram_message(chat_id, "⚠️ حدث خطأ في معالجة بيانات المنتجات.")
+                        send_telegram_message(chat_id, "⚠️ حدث خطأ في قراءة بيانات المنتجات من المزود.")
                 else:
-                    send_telegram_message(chat_id, f"⚠️ خطأ بالمزود ({response.status_code}) - تأكد من تفعيل الـ API في لوحة تحكم المتجر.")
+                    # في حال ظهر خطأ 401 مرة أخرى، نطبع تفاصيل الرد لنتأكد
+                    send_telegram_message(chat_id, f"⚠️ خطأ بالمزود ({response.status_code}) - تأكد من حفظ إعدادات السماح لكل الأبيات في لوحة تحكم One Store.")
             else:
-                send_telegram_message(chat_id, "أهلاً بك! أرسل الأمر /products لعرض المنتجات المتاحة.")
+                send_telegram_message(chat_id, "أهلاً بك! أرسل الأمر /products لعرض المنتجات الحقيقية.")
                 
     except Exception as e:
         print(f"Error: {str(e)}")
